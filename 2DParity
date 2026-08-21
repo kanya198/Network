@@ -1,0 +1,229 @@
+#ifndef HEAD_H
+#define HEAD_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct parityframe {
+    int grid[128][8];
+    int r;
+};
+
+extern struct parityframe f;
+
+void sender(const char *bits);
+int receiver();
+
+#endif
+#include <stdio.h>
+#include <string.h>
+#include"head1.h"
+struct parityframe f;
+
+void sender(const char *bits) {
+    int len = strlen(bits);
+    int bit_idx = 0;
+    int i = 0, j = 0;
+    int count = 0;
+
+    f.r = len / 7;
+
+    for (i = 0; i < f.r; i++) {
+        for (j = 0; j < 7; j++) {
+            f.grid[i][j] = (bits[bit_idx++] == '1') ? 1 : 0;
+        }
+    }
+
+    for (i = 0; i < f.r; i++) {
+        count = 0;
+        for (j = 0; j < 7; j++) {
+            if (f.grid[i][j] == 1) {
+                count++;
+            }
+        }
+        f.grid[i][7] = (count % 2 == 0) ? 0 : 1;
+    }
+
+    for (j = 0; j < 7; j++) {
+        count = 0;
+        for (i = 0; i < f.r; i++) {
+            if (f.grid[i][j] == 1) {
+                count++;
+            }
+        }
+        f.grid[f.r][j] = (count % 2 == 0) ? 0 : 1;
+    }
+
+    count = 0;
+    for (j = 0; j < 7; j++) {
+        if (f.grid[f.r][j] == 1) {
+            count++;
+        }
+    }
+    f.grid[f.r][7] = (count % 2 == 0) ? 0 : 1;
+}
+
+int receiver(int *error_row_idx, int *error_col_idx) {
+    int i = 0, j = 0;
+    int count = 0;
+    int row_error_count = 0;
+    int col_error_count = 0;
+
+    *error_row_idx = -1;
+    *error_col_idx = -1;
+
+    for (i = 0; i < f.r; i++) {
+        count = 0;
+        for (j = 0; j < 8; j++) {
+            if (f.grid[i][j] == 1) {
+                count++;
+            }
+        }
+        if (count % 2 != 0) {
+            row_error_count++;
+            if (*error_row_idx == -1) {
+                *error_row_idx = i;
+            }
+        }
+    }
+
+    for (j = 0; j < 7; j++) {
+        count = 0;
+        for (i = 0; i <= f.r; i++) {
+            if (f.grid[i][j] == 1) {
+                count++;
+            }
+        }
+        if (count % 2 != 0) {
+            col_error_count++;
+            if (*error_col_idx == -1) {
+                *error_col_idx = j;
+            }
+        }
+    }
+
+    if (row_error_count == 0 && col_error_count == 0) {
+        return 0;
+    }
+
+    if (row_error_count == 1 && col_error_count == 1) {
+        return 1;
+    }
+
+    if (row_error_count > 0 && col_error_count == 0) {
+        return 3;
+    }
+
+    return 2;
+}
+#include"head1.h"
+void printCurrentMatrix() {
+    int i, j;
+    for (i = 0; i < f.r; i++) {
+        printf("Row %2d: ", i + 1);
+        for (j = 0; j < 7; j++) {
+            printf("%d ", f.grid[i][j]);
+        }
+        printf("|  %d\n", f.grid[i][7]);
+    }
+    printf("-----------------------------------------\nColPar: ");
+    for (j = 0; j < 7; j++) {
+        printf("%d ", f.grid[f.r][j]);
+    }
+    printf("|  %d\n\n", f.grid[f.r][7]);
+}
+
+void processAndReportResult(int expected_case) {
+    int err_row = -1, err_col = -1;
+    int check_status = receiver(&err_row, &err_col);
+    int i, j;
+
+    if (check_status == 0) {
+        printf("Receiver Result: 2D Parity checks passed! No errors detected.\n");
+        printf("Extracted Data  : ");
+        for (i = 0; i < f.r; i++) {
+            for (j = 0; j < 7; j++) {
+                printf("%d", f.grid[i][j]);
+            }
+        }
+        printf("\n");
+    }
+    else if (check_status == 1) {
+        printf("Receiver Result: 1-Bit Error Detected at Row %d, Column %d!\n", err_row + 1, err_col + 1);
+        printf("Fixing error bit automatically...\n");
+        f.grid[err_row][err_col] = !f.grid[err_row][err_col];
+
+        printf("Corrected Data : ");
+        for (i = 0; i < f.r; i++) {
+            for (j = 0; j < 7; j++) {
+                printf("%d", f.grid[i][j]);
+            }
+        }
+        printf("\n");
+    }
+    else if (check_status == 3) {
+        printf("Receiver Result: 2D Parity checks passed! No errors detected.\n");
+        printf("Receiver Note  : Multi-bit error cancelled out! (Undetectable error loop)\n");
+        printf("Extracted Data : ");
+        for (i = 0; i < f.r; i++) {
+            for (j = 0; j < 7; j++) {
+                printf("%d", f.grid[i][j]);
+            }
+        }
+        printf("\n");
+    }
+    else {
+        printf("Receiver Result: Multiple errors detected (Uncorrectable format).\n");
+        printf("Extracted Data : ");
+        for (i = 0; i < f.r; i++) {
+            for (j = 0; j < 7; j++) {
+                printf("%d", f.grid[i][j]);
+            }
+        }
+        printf("\n");
+    }
+}
+
+int main() {
+    char input_bits[1024] = {0};
+
+    printf("Enter a stream of bits (Multiple of 7): ");
+    if (scanf("%1023s", input_bits) != 1) {
+        printf("Invalid input.\n");
+        return 1;
+    }
+
+    if (strlen(input_bits) % 7 != 0 || strlen(input_bits) < 14) {
+        printf("Error: Input length must be a multiple of 7 and at least 14 bits long to simulate 2-bit errors.\n");
+        return 1;
+    }
+
+    sender(input_bits);
+
+    printf("\n=======================================================\n");
+    printf("TEST CASE 1: TRANSMISSION WITH NO ERRORS\n");
+    printf("=======================================================\n");
+    printCurrentMatrix();
+    processAndReportResult(1);
+
+    printf("\n=======================================================\n");
+    printf("TEST CASE 2: TRANSMISSION WITH 1-BIT DETECTABLE ERROR\n");
+    printf("=======================================================\n");
+    printf("Simulating an error by flipping bit at Row 1, Column 1...\n\n");
+    f.grid[0][0] = !f.grid[0][0];
+    printCurrentMatrix();
+    processAndReportResult(2);
+
+    printf("\n=======================================================\n");
+    printf("TEST CASE 3: TRANSMISSION WITH 2-BIT UNDETECTABLE ERROR\n");
+    printf("=======================================================\n");
+    printf("Simulating 2 errors: flipping [Row 1, Col 1] and [Row 2, Col 1]...\n");
+    printf("(This changes the values but keeps the vertical column parity even!)\n\n");
+    f.grid[0][0] = !f.grid[0][0];
+    f.grid[1][0] = !f.grid[1][0];
+    printCurrentMatrix();
+    processAndReportResult(3);
+
+    return 0;
+}
