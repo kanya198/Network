@@ -1,0 +1,196 @@
+#ifndef HEAD_H
+#define HEAD_H
+
+extern int data[100];
+extern int code[120];
+extern int i;
+
+void generate_checksum(int num_blocks, int block_size);
+int verify_checksum(int num_blocks, int block_size);
+
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include "head2.h"
+
+int data[100] = {0};
+int code[120] = {0};
+int i;
+
+void generate_checksum(int num_blocks, int block_size) {
+    int sum[16] = {0};
+    int carry = 0;
+    int b, j;
+
+    for (i = 0; i < num_blocks * block_size; i++) {
+        code[i + 1] = data[i];
+    }
+
+    printf("Calculating Steps for Checksum Segment:\n");
+    for (b = 0; b < num_blocks; b++) {
+        carry = 0;
+        printf("Block %2d: ", b + 1);
+        for (j = 0; j < block_size; j++) {
+            printf("%d", data[b * block_size + j]);
+        }
+        printf("\n");
+
+        for (j = block_size - 1; j >= 0; j--) {
+            int current_bit = data[b * block_size + j];
+            int total = sum[j] + current_bit + carry;
+            sum[j] = total % 2;
+            carry = total / 2;
+        }
+
+        while (carry > 0) {
+            for (j = block_size - 1; j >= 0; j--) {
+                int total = sum[j] + carry;
+                sum[j] = total % 2;
+                carry = total / 2;
+            }
+        }
+    }
+
+    printf("Sum      : ");
+    for (j = 0; j < block_size; j++) {
+        printf("%d", sum[j]);
+    }
+    printf("\n");
+
+    printf("Checksum : ");
+    for (j = 0; j < block_size; j++) {
+        int checksum_bit = !sum[j];
+        printf("%d", checksum_bit);
+        /* FIXED: Corrected mapping offset to link directly to index 17 onwards */
+        code[num_blocks * block_size + 1 + j] = checksum_bit;
+    }
+    printf("\n\n");
+}
+
+int verify_checksum(int num_blocks, int block_size) {
+    int sum[16] = {0};
+    int carry = 0;
+    int b, j;
+    int total_blocks = num_blocks + 1;
+    int error = 0;
+
+    printf("\n[Receiver Calculations Pass]:\n");
+    for (b = 0; b < total_blocks; b++) {
+        carry = 0;
+        printf("Segment %2d: ", b + 1);
+        for (j = 0; j < block_size; j++) {
+            printf("%d", code[b * block_size + 1 + j]);
+        }
+        printf("\n");
+
+        for (j = block_size - 1; j >= 0; j--) {
+            int current_bit = code[b * block_size + 1 + j];
+            int total = sum[j] + current_bit + carry;
+            sum[j] = total % 2;
+            carry = total / 2;
+        }
+
+        while (carry > 0) {
+            for (j = block_size - 1; j >= 0; j--) {
+                int total = sum[j] + carry;
+                sum[j] = total % 2;
+                carry = total / 2;
+            }
+        }
+    }
+
+    printf("Final Sum : ");
+    for (j = 0; j < block_size; j++) {
+        printf("%d", sum[j]);
+        if (sum[j] != 1) {
+            error = 1;
+        }
+    }
+    printf("\n");
+
+    return error;
+}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "head2.h"
+
+int main() {
+    char input_str[100];
+    int block_size;
+    int error_pos;
+    int i;
+    int data_len = 0;
+    int num_blocks = 0;
+    int total_bits = 0;
+    int error_detected;
+
+    printf("Enter data bits (e.g., 10111101, 110010101111, etc.): ");
+    if (scanf("%99s", input_str) != 1) {
+        printf("Invalid input error.\n");
+        return 1;
+    }
+
+    data_len = strlen(input_str);
+    for (i = 0; i < data_len; i++) {
+        if (input_str[i] != '0' && input_str[i] != '1') {
+            printf("Invalid input! Please enter only 0s and 1s.\n");
+            return 1;
+        }
+    }
+
+    printf("Enter block segment size (e.g., 4, 8): ");
+    if (scanf("%d", &block_size) != 1 || block_size <= 0 || block_size > 16) {
+        printf("Invalid block size! Please choose a size between 1 and 16.\n");
+        return 1;
+    }
+
+    if (data_len % block_size != 0) {
+        printf("Error: Total input bits must be perfectly divisible by the block size.\n");
+        return 1;
+    }
+    num_blocks = data_len / block_size;
+    total_bits = data_len + block_size;
+
+    printf("\nEnter bit position to simulate error (1 to %d, or 0 for no error): ", total_bits);
+    if (scanf("%d", &error_pos) != 1 || error_pos < 0 || error_pos > total_bits) {
+        printf("Invalid position! Must be between 0 and %d.\n", total_bits);
+        return 1;
+    }
+    printf("\n");
+
+    printf("Calculated Formula Steps:\n");
+    printf("Total raw data bits = %d\n", data_len);
+    printf("Segment block size  = %d\n", block_size);
+    printf("Number of segments  = %d\n", num_blocks);
+    printf("Total transmission bits = %d\n\n", total_bits);
+
+    for (i = 0; i < data_len; i++) {
+        data[i] = input_str[i] - '0';
+    }
+
+    generate_checksum(num_blocks, block_size);
+
+    printf("Code Word to be Transmitted to Receiver Side: ");
+    for (i = 1; i <= total_bits; i++) {
+        printf("%d ", code[i]);
+    }
+    printf("\n\n");
+
+    printf("--- TRANSMISSION TO RECEIVER ---\n");
+    if (error_pos > 0) {
+        printf("Simulating error at position %d...\n", error_pos);
+        code[error_pos] = !code[error_pos];
+    } else {
+        printf("No errors simulated during transmission.\n");
+    }
+
+    error_detected = verify_checksum(num_blocks, block_size);
+    if (error_detected == 0) {
+        printf("\nResult: No transmission errors found. (Syndrome sum is all 1s)\n");
+    } else {
+        printf("\nResult: Checksum error detected! (Syndrome sum has 0s)\n");
+    }
+
+    return 0;
+}
