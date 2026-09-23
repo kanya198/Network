@@ -1,0 +1,141 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <limits.h>
+
+// Structure to represent a node in the priority queue
+typedef struct {
+    int effort;
+    int r;
+    int c;
+} HeapNode;
+
+// Structure for the Min-Heap
+typedef struct {
+    HeapNode* data;
+    int size;
+    int capacity;
+} MinHeap;
+
+// Helper to create a Min-Heap
+MinHeap* createMinHeap(int capacity) {
+    MinHeap* heap = (MinHeap*)malloc(sizeof(MinHeap));
+    heap->data = (HeapNode*)malloc(capacity * sizeof(HeapNode));
+    heap->size = 0;
+    heap->capacity = capacity;
+    return heap;
+}
+
+// Swap helper
+void swap(HeapNode* a, HeapNode* b) {
+    HeapNode temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+// Push to Min-Heap
+void push(MinHeap* heap, int effort, int r, int c) {
+    if (heap->size == heap->capacity) return; // Heap full
+    
+    int i = heap->size++;
+    heap->data[i].effort = effort;
+    heap->data[i].r = r;
+    heap->data[i].c = c;
+    
+    // Up-heapify
+    while (i != 0 && heap->data[i].effort < heap->data[(i - 1) / 2].effort) {
+        swap(&heap->data[i], &heap->data[(i - 1) / 2]);
+        i = (i - 1) / 2;
+    }
+}
+
+// Pop from Min-Heap
+HeapNode pop(MinHeap* heap) {
+    HeapNode root = heap->data[0];
+    heap->data[0] = heap->data[--heap->size];
+    
+    // Down-heapify
+    int i = 0;
+    while (2 * i + 1 < heap->size) {
+        int left = 2 * i + 1;
+        int right = 2 * i + 2;
+        int smallest = left;
+        
+        if (right < heap->size && heap->data[right].effort < heap->data[left].effort) {
+            smallest = right;
+        }
+        if (heap->data[i].effort <= heap->data[smallest].effort) {
+            break;
+        }
+        swap(&heap->data[i], &heap->data[smallest]);
+        i = smallest;
+    }
+    return root;
+}
+
+int minimumEffortPath(int** heights, int heightsSize, int* heightsColSize) {
+    int rows = heightsSize;
+    int cols = heightsColSize[0];
+    
+    // 2D grid to track the minimum effort to reach each cell
+    int** dist = (int**)malloc(rows * sizeof(int*));
+    for (int i = 0; i < rows; i++) {
+        dist[i] = (int*)malloc(cols * sizeof(int));
+        for (int j = 0; j < cols; j++) {
+            dist[i][j] = INT_MAX; // Initialize with infinity
+        }
+    }
+    
+    // Initialize Min-Heap (Max elements inside the heap at any time cannot exceed rows * cols)
+    MinHeap* heap = createMinHeap(rows * cols);
+    
+    // Start at (0, 0) with 0 effort
+    dist[0][0] = 0;
+    push(heap, 0, 0, 0);
+    
+    // Direction vectors for moving: Up, Right, Down, Left
+    int dr[] = {-1, 0, 1, 0};
+    int dc[] = {0, 1, 0, -1};
+    
+    while (heap->size > 0) {
+        HeapNode curr = pop(heap);
+        int effort = curr.effort;
+        int r = curr.r;
+        int c = curr.c;
+        
+        // If we reached the bottom-right corner, it's guaranteed to be the minimal effort path
+        if (r == rows - 1 && c == cols - 1) {
+            int ans = effort;
+            // Free dynamically allocated memory
+            for (int i = 0; i < rows; i++) free(dist[i]);
+            free(dist);
+            free(heap->data);
+            free(heap);
+            return ans;
+        }
+        
+        // Skip processing if we have already found a shorter effort path to this cell
+        if (effort > dist[r][c]) continue;
+        
+        // Explore all 4 adjacent neighbors
+        for (int i = 0; i < 4; i++) {
+            int nr = r + dr[i];
+            int nc = c + dc[i];
+            
+            // Check boundary limits
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                // The new effort is the maximum step gap encountered along this particular trajectory
+                int stepGap = abs(heights[r][c] - heights[nr][nc]);
+                int newEffort = effort > stepGap ? effort : stepGap; 
+                
+                // Relaxation step: If this route provides a lower maximum effort, update it
+                if (newEffort < dist[nr][nc]) {
+                    dist[nr][nc] = newEffort;
+                    push(heap, newEffort, nr, nc);
+                }
+            }
+        }
+    }
+    
+    return 0; // Fallback
+}
