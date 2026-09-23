@@ -1,0 +1,118 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
+// Structure for Adjacency List to map: Stop -> List of Bus Routes passing through it
+typedef struct {
+    int* routes;
+    int size;
+    int capacity;
+} StopToRoutes;
+
+// Helper to add a route to a stop's list
+void addRoute(StopToRoutes* stopMap, int stop, int route) {
+    if (stopMap[stop].size == stopMap[stop].capacity) {
+        stopMap[stop].capacity = stopMap[stop].capacity == 0 ? 4 : stopMap[stop].capacity * 2;
+        stopMap[stop].routes = (int*)realloc(stopMap[stop].routes, stopMap[stop].capacity * sizeof(int));
+    }
+    stopMap[stop].routes[stopMap[stop].size++] = route;
+}
+
+int numBusesToDestination(int** routes, int routesSize, int* routesColSize, int source, int target) {
+    // Edge case: If source and target are the same, 0 buses are needed
+    if (source == target) return 0;
+
+    // Find the maximum stop number to allocate our mapping array
+    int maxStop = 0;
+    for (int i = 0; i < routesSize; i++) {
+        for (int j = 0; j < routesColSize[i]; j++) {
+            if (routes[i][j] > maxStop) {
+                maxStop = routes[i][j];
+            }
+        }
+    }
+
+    // If source or target is outside the scope of known routes, it's unreachable
+    if (source > maxStop || target > maxStop) return -1;
+
+    // Allocate stop-to-routes dictionary map
+    StopToRoutes* stopMap = (StopToRoutes*)calloc(maxStop + 1, sizeof(StopToRoutes));
+    for (int i = 0; i < routesSize; i++) {
+        for (int j = 0; j < routesColSize[i]; j++) {
+            addRoute(stopMap, routes[i][j], i);
+        }
+    }
+
+    // BFS setup: tracking arrays for visited entities
+    bool* visitedRoutes = (bool*)calloc(routesSize, sizeof(bool));
+    bool* visitedStops = (bool*)calloc(maxStop + 1, sizeof(bool));
+    
+    // Queue structure for storing pairs: [stop_id, bus_count_taken]
+    int queueCapacity = 100000; 
+    int* queueStop = (int*)malloc(queueCapacity * sizeof(int));
+    int* queueBusCount = (int*)malloc(queueCapacity * sizeof(int));
+    int head = 0, tail = 0;
+
+    // Enqueue initial position
+    queueStop[tail] = source;
+    queueBusCount[tail] = 0;
+    tail++;
+    visitedStops[source] = true;
+
+    int result = -1;
+
+    while (head < tail) {
+        int currStop = queueStop[head];
+        int busCount = queueBusCount[head];
+        head++;
+
+        if (currStop == target) {
+            result = busCount;
+            break;
+        }
+
+        // Look at all bus routes passing through the current stop
+        int numRoutes = stopMap[currStop].size;
+        for (int i = 0; i < numRoutes; i++) {
+            int routeId = stopMap[currStop].routes[i];
+
+            // If we haven't boarded this bus route yet
+            if (!visitedRoutes[routeId]) {
+                visitedRoutes[routeId] = true;
+
+                // Explore all stops reachable along this entire bus line route
+                for (int j = 0; j < routesColSize[routeId]; j++) {
+                    int nextStop = routes[routeId][j];
+
+                    if (!visitedStops[nextStop]) {
+                        visitedStops[nextStop] = true;
+                        
+                        // Dynamically resize queue array if it overflows bounds
+                        if (tail >= queueCapacity) {
+                            queueCapacity *= 2;
+                            queueStop = (int*)realloc(queueStop, queueCapacity * sizeof(int));
+                            queueBusCount = (int*)realloc(queueBusCount, queueCapacity * sizeof(int));
+                        }
+                        
+                        queueStop[tail] = nextStop;
+                        queueBusCount[tail] = busCount + 1;
+                        tail++;
+                    }
+                }
+            }
+        }
+    }
+
+    // Clean up allocated space
+    for (int i = 0; i <= maxStop; i++) {
+        if (stopMap[i].routes) free(stopMap[i].routes);
+    }
+    free(stopMap);
+    free(visitedRoutes);
+    free(visitedStops);
+    free(queueStop);
+    free(queueBusCount);
+
+    return result;
+}
