@@ -1,0 +1,46 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+
+int networkDelayTime(int** times, int timesSize, int* timesColSize, int n, int k) {
+    // 1. Allocate and initialize the distance array
+    // Indexing is 1-based (from 1 to n), so allocate n + 1 elements
+    int* dist = (int*)malloc((n + 1) * sizeof(int));
+    for (int i = 1; i <= n; i++) {
+        dist[i] = INT_MAX;
+    }
+    dist[k] = 0; // The source node receives the signal at time 0
+
+    // 2. Relax all edges n - 1 times
+    for (int i = 1; i < n; i++) {
+        int updated = 0;
+        for (int j = 0; j < timesSize; j++) {
+            int u = times[j][0]; // Source node
+            int v = times[j][1]; // Target node
+            int w = times[j][2]; // Travel time (weight)
+
+            // If node u has been reached, check if traveling to v provides a faster path
+            if (dist[u] != INT_MAX && dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w;
+                updated = 1;
+            }
+        }
+        // Optimization: If no distances change during an entire round, we can stop early
+        if (!updated) break;
+    }
+
+    // 3. Find the maximum time taken to reach any node
+    int maxDelay = 0;
+    for (int i = 1; i <= n; i++) {
+        if (dist[i] == INT_MAX) {
+            free(dist);
+            return -1; // At least one node is unreachable
+        }
+        if (dist[i] > maxDelay) {
+            maxDelay = dist[i];
+        }
+    }
+
+    free(dist);
+    return maxDelay;
+}
