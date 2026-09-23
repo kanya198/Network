@@ -1,0 +1,46 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+
+int findCheapestPrice(int n, int** flights, int flightsSize, int* flightsColSize, int src, int dst, int k) {
+    // Allocate memory for the distance arrays
+    int* dist = (int*)malloc(n * sizeof(int));
+    int* temp = (int*)malloc(n * sizeof(int));
+    
+    // Initialize all distances to a high value (infinity)
+    for (int i = 0; i < n; i++) {
+        dist[i] = INT_MAX;
+    }
+    dist[src] = 0; // Distance to the source is 0
+
+    // We can make at most K stops, which means at most K + 1 edges/flights
+    for (int i = 0; i <= k; i++) {
+        // Copy current distances to temp to prevent updates from propagating 
+        // within the same iteration (ensuring exactly 'i' stops are computed)
+        memcpy(temp, dist, n * sizeof(int));
+        
+        for (int j = 0; j < flightsSize; j++) {
+            int u = flights[j][0]; // From
+            int v = flights[j][1]; // To
+            int price = flights[j][2]; // Price
+            
+            // If the source city 'u' has been reached in a previous step
+            if (dist[u] != INT_MAX) {
+                if (dist[u] + price < temp[v]) {
+                    temp[v] = dist[u] + price;
+                }
+            }
+        }
+        // Update the main distance array for the next iteration
+        memcpy(dist, temp, n * sizeof(int));
+    }
+    
+    int result = dist[dst] == INT_MAX ? -1 : dist[dst];
+    
+    // Free allocated memory
+    free(dist);
+    free(temp);
+    
+    return result;
+}
